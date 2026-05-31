@@ -164,6 +164,34 @@ function isGroup(msg) {
 
 const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo'];
 
+const CHANNEL_UN = process.env.CHANNEL || 'kittyxosintupdates';
+
+const JOIN_REQUIRED = q(`${HEADER}
+
+🔒 ${b('Access Restricted')}
+
+You haven't joined our channel yet!
+
+👇 ${b('Join below to unlock KittyOsint:')}`);
+
+function channelKeyboard() {
+  return {
+    inline_keyboard: [[
+      { text: '📢 Join @' + CHANNEL_UN, url: `https://t.me/${CHANNEL_UN}` }
+    ]]
+  };
+}
+
+async function requireChannel(bot, msg) {
+  if (!msg.from) return false;
+  try {
+    const member = await bot.getChatMember(`@${CHANNEL_UN}`, msg.from.id);
+    return ['creator', 'administrator', 'member'].includes(member.status);
+  } catch {
+    return true;
+  }
+}
+
 function setupBot(bot) {
   const JOIN_GROUP_TEXT = q(`❌ ${b('Group Only!')}\n\nThis bot only works in the authorized group.\nJoin the group to use it.`);
 
@@ -210,6 +238,9 @@ ${b('💡 Tip:')} You can also send a number directly!`;
 
   bot.onText(/\/numinfo\s+(\d+)/, async (msg, match) => {
     if (!isGroup(msg)) return;
+    if (!(await requireChannel(bot, msg))) {
+      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    }
     const chatId = msg.chat.id;
     const number = match[1];
 
@@ -250,6 +281,9 @@ ${b('💡 Tip:')} You can also send a number directly!`;
 
   bot.onText(/\/aadharinfo\s+(\d+)/, async (msg, match) => {
     if (!isGroup(msg)) return;
+    if (!(await requireChannel(bot, msg))) {
+      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    }
     const chatId = msg.chat.id;
     const aadhaar = match[1];
 
@@ -281,6 +315,9 @@ ${b('💡 Tip:')} You can also send a number directly!`;
 
   bot.onText(/\/pangstinfo\s+([A-Za-z0-9]+)/, async (msg, match) => {
     if (!isGroup(msg)) return;
+    if (!(await requireChannel(bot, msg))) {
+      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    }
     const chatId = msg.chat.id;
     const pan = match[1].toUpperCase();
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
@@ -339,6 +376,10 @@ ${b('💡 Tip:')} You can also send a number directly!`;
 
     if (!/^\d{5,15}$/.test(text)) {
       return bot.sendMessage(chatId, '❌ Please send a valid number (5-15 digits).', { reply_to_message_id: msg.message_id });
+    }
+
+    if (!(await requireChannel(bot, msg))) {
+      return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     }
 
     const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
