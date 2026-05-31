@@ -38,9 +38,75 @@ app.listen(PORT, () => {
   }
 });
 
+function esc(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function q(text) {
+  return `<blockquote>${text}</blockquote>`;
+}
+
+function b(text) {
+  return `<b>${esc(text)}</b>`;
+}
+
+function startHealthMonitor(bot) {
+  const chatId = process.env.GROUP_ID;
+  if (!chatId) return;
+
+  const apiBase = `http://localhost:${PORT}`;
+  let systemDown = false;
+  let initial = true;
+  const HEADER = '╔══════════════════════════╗\n║       KittyOsint v1       ║\n╚══════════════════════════╝';
+
+  async function check() {
+    let allUp = true;
+
+    const checks = [
+      axios.get(`${apiBase}/api/chain?number=6296913508`, { timeout: 15000 }).catch(() => { allUp = false; }),
+      axios.get(`${apiBase}/api/aadhaar?aadhaar=828333416307`, { timeout: 15000 }).catch(() => { allUp = false; }),
+      axios.get(`${apiBase}/api/pangst?pan=AAACB4834H`, { timeout: 15000 }).catch(() => { allUp = false; }),
+    ];
+
+    await Promise.all(checks);
+
+    if (initial) { initial = false; systemDown = !allUp; return; }
+
+    if (!allUp && !systemDown) {
+      systemDown = true;
+      const msg = q(`${HEADER}
+
+⚠️ ${b('KittyOsint API Unavailable')}
+
+Sorry, the API is currently down.
+
+🙏 Please keep patience.
+We will be back soon.`);
+      try { await bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }); } catch {}
+      console.log('[Health] APIs went DOWN');
+    } else if (allUp && systemDown) {
+      systemDown = false;
+      const msg = q(`${HEADER}
+
+✅ ${b('KittyOsint API is back online!')}
+
+All services are running normally again.
+
+🕵️ Happy digging!`);
+      try { await bot.sendMessage(chatId, msg, { parse_mode: 'HTML' }); } catch {}
+      console.log('[Health] APIs are BACK UP');
+    }
+  }
+
+  check();
+  setInterval(check, 5 * 60 * 1000);
+  console.log('Health monitor started (check every 5 min)');
+}
+
 if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
   const bot = new TelegramBot(BOT_TOKEN, { polling: true });
   setupBot(bot);
+  startHealthMonitor(bot);
   console.log('Bot is running...');
 } else {
   console.log('Bot not started: set BOT_TOKEN in .env');
