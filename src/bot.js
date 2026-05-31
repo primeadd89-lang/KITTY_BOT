@@ -159,7 +159,9 @@ async function sendJSONFile(chatId, bot, data, filename, replyId) {
 function isGroup(msg) {
   const allowed = String(process.env.GROUP_ID);
   if (!allowed) return false;
-  return String(msg.chat.id) === allowed;
+  const result = String(msg.chat.id) === allowed;
+  if (!result) console.log(`[isGroup] chat.id=${msg.chat.id}, expected=${allowed}, type=${msg.chat.type}`);
+  return result;
 }
 
 const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo'];
