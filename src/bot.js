@@ -1,0 +1,380 @@
+const axios = require('axios');
+
+const HEADER = '╔══════════════════════════╗\n║       KittyOsint v1       ║\n╚══════════════════════════╝';
+
+function mk() {
+  const row = [];
+  const groupLink = process.env.GROUP_LINK;
+  const channelLink = process.env.CHANNEL_LINK;
+  if (groupLink) row.push({ text: '👤 Owner Group', url: groupLink });
+  if (channelLink) row.push({ text: '📢 Channel', url: channelLink });
+  return { inline_keyboard: [row] };
+}
+
+function q(text) {
+  return `<blockquote>${text}</blockquote>`;
+}
+
+function esc(text) {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function b(text) {
+  return `<b>${esc(text)}</b>`;
+}
+
+function c(text) {
+  return `<code>${esc(text)}</code>`;
+}
+
+function fmtLine(emoji, label, val) {
+  return `│ ${emoji} ${b(label)}: ${val}`;
+}
+
+const HELP_TEXT = `${HEADER}
+
+🔍 ${b('Available Commands')}
+
+/numinfo ${c('<number>')} — Look up phone number details
+/aadharinfo ${c('<aadhaar>')} — Look up Aadhaar family details
+/pangstinfo ${c('<PAN>')} — Look up GST from PAN
+/help — Show this message
+
+You can also send a phone number directly.`;
+
+const UNKNOWN_CMD = q(`${HEADER}\n\n❌ ${b('Unknown command!')}\n\nUse /help to see available commands.`);
+const LOADER_NUM = q(`⏳ ${b('KittyOsint')} is looking up the number...`);
+const LOADER_AAD = q(`⏳ ${b('KittyOsint')} is looking up the Aadhaar...`);
+const LOADER_PAN = q(`⏳ ${b('KittyOsint')} is looking up the PAN...`);
+const ERR_NODATA = (n) => q(`${HEADER}\n\n❌ No data found for ${c(n)}.`);
+const ERR_FAIL = q(`${HEADER}\n\n❌ Lookup failed. Try again later.`);
+
+function fval(v) {
+  return v ? esc(v) : '';
+}
+
+function formatResults(results) {
+  const entries = Object.entries(results);
+  let parts = [HEADER];
+  entries.forEach(([key, item]) => {
+    const num = entries.length > 1 ? key.toUpperCase() : '';
+    parts.push(`\n┌──── ${num} ─────┐`);
+
+    const fields = [
+      ['📞', 'Number', c(item.searchedNumber)],
+      ['👤', 'Name', fval(item.name)],
+      ['👨', 'Father', fval(item.fatherName)],
+      ['📍', 'Address', fval(item.address)],
+      ['📡', 'Circle', fval(item.circle)],
+      ['🔄', 'Alternate', c(item.alternateNumber)],
+      ['🆔', 'Aadhaar', c(item.aadhaarNumber)],
+      ['📧', 'Email', c(item.email)],
+    ];
+    fields.forEach(([emoji, label, val]) => {
+      if (val) parts.push(fmtLine(emoji, label, val));
+    });
+    parts.push(`└${'─'.repeat(18)}┘`);
+  });
+  return q(parts.join('\n'));
+}
+
+function formatAadhaar(data) {
+  const r = data.result;
+  if (!r || !r.success || !r.results || r.results.length === 0) {
+    return q(`${HEADER}\n\n❌ No data found for this Aadhaar.`);
+  }
+
+  let parts = [HEADER];
+
+  r.results.forEach((entry, idx) => {
+    const rc = entry.ration_card_details || {};
+    const ai = entry.additional_info || {};
+
+    if (r.results.length > 1) parts.push(`\n┌─── RESULT ${idx + 1} ───┐`);
+
+    parts.push(`\n┌─── RATION CARD ───┐`);
+    if (rc.ration_card_no) parts.push(fmtLine('📇', 'RC No.', c(rc.ration_card_no)));
+    if (rc.state_name) parts.push(fmtLine('🏛️', 'State', fval(rc.state_name)));
+    if (rc.district_name) parts.push(fmtLine('📍', 'District', fval(rc.district_name)));
+    if (rc.scheme_name) parts.push(fmtLine('📋', 'Scheme', fval(rc.scheme_name)));
+    parts.push(`└${'─'.repeat(18)}┘`);
+
+    if (entry.members && entry.members.length > 0) {
+      parts.push(`\n┌─── FAMILY MEMBERS ───┐`);
+      entry.members.forEach(m => {
+        parts.push(`│ 👤 ${b(m.member_name)}`);
+        if (m.remark) parts.push(`│   Remark: ${fval(m.remark)}`);
+      });
+      parts.push(`└${'─'.repeat(22)}┘`);
+    }
+
+    parts.push(`\n┌─── ADDITIONAL INFO ───┐`);
+    parts.push(fmtLine('✅', 'Central Repository', ai.exists_in_central_repository ? 'Yes' : 'No'));
+    parts.push(fmtLine('🔄', 'IMPDs Allowed', ai.impds_transaction_allowed ? 'Yes' : 'No'));
+    parts.push(fmtLine('🏪', 'FPS Category', fval(ai.fps_category)));
+    parts.push(fmtLine('⚠️', 'Duplicate Benef.', ai.duplicate_aadhaar_beneficiary ? 'Yes' : 'No'));
+    parts.push(`└${'─'.repeat(22)}┘`);
+  });
+
+  return q(parts.join('\n'));
+}
+
+function formatPAN(data) {
+  const r = data.result;
+  if (!r || !r.items || r.items.length === 0) {
+    return q(`${HEADER}\n\n❌ No GST found for PAN ${c(data.pan)}.`);
+  }
+
+  let parts = [HEADER];
+  parts.push(`\n┌─── PAN TO GST ───┐`);
+  parts.push(fmtLine('📇', 'PAN', c(data.pan)));
+  parts.push(`└${'─'.repeat(18)}┘`);
+
+  r.items.forEach((item, idx) => {
+    if (r.items.length > 1) parts.push(`\n┌─── GST ${idx + 1} ───┐`);
+    else parts.push(`\n┌─── GST INFO ───┐`);
+    if (item.gstin) parts.push(fmtLine('🆔', 'GSTIN', c(item.gstin)));
+    if (item.auth_status) parts.push(fmtLine('✅', 'Status', fval(item.auth_status)));
+    if (item.state) parts.push(fmtLine('📍', 'State', fval(item.state)));
+    parts.push(`└${'─'.repeat(18)}┘`);
+  });
+
+  return q(parts.join('\n'));
+}
+
+async function sendJSONFile(chatId, bot, data, filename, replyId) {
+  const json = JSON.stringify(data, null, 2);
+  try {
+    await bot.sendDocument(chatId, Buffer.from(json, 'utf8'), {
+      caption: `📥 ${filename}`,
+      reply_to_message_id: replyId,
+      reply_markup: mk(),
+    }, {
+      filename,
+      contentType: 'application/json',
+    });
+  } catch {}
+}
+
+function isGroup(msg) {
+  const allowed = String(process.env.GROUP_ID);
+  if (!allowed) return false;
+  return String(msg.chat.id) === allowed;
+}
+
+const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo'];
+
+function setupBot(bot) {
+  const JOIN_GROUP_TEXT = q(`❌ ${b('Group Only!')}\n\nThis bot only works in the authorized group.\nJoin the group to use it.`);
+
+  bot.on('new_chat_members', (msg) => {
+    if (!isGroup(msg)) return;
+    const chatId = msg.chat.id;
+    msg.new_chat_members.forEach(member => {
+      if (member.is_bot) return;
+      const name = esc(member.first_name || 'User');
+      const text = `${HEADER}
+
+🎉 ${b('Welcome ' + name + '!')} ${b('KittyOsint')} is here.
+
+┌─── ${b('Available Commands')} ───┐
+│ 📞 ${b('/numinfo')} ${c('<number>')}
+│   └ Look up phone number details
+│ 🆔 ${b('/aadharinfo')} ${c('<aadhaar>')}
+│   └ Look up Aadhaar family details
+│ ❓ ${b('/help')}
+│   └ Show this message
+└${'─'.repeat(28)}┘
+
+${b('💡 Tip:')} You can also send a number directly!`;
+      bot.sendMessage(chatId, q(text), { parse_mode: 'HTML', reply_markup: mk() });
+    });
+  });
+
+  bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    if (!isGroup(msg)) {
+      return bot.sendMessage(chatId, JOIN_GROUP_TEXT, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    }
+    bot.sendMessage(
+      chatId,
+      q(`🎉 ${b('Welcome to KittyOsint!')}\n\nSend a phone number to look up its details, or use the commands below.\n\n${HELP_TEXT}`),
+      { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id }
+    );
+  });
+
+  bot.onText(/\/help/, (msg) => {
+    if (!isGroup(msg)) return;
+    bot.sendMessage(msg.chat.id, q(HELP_TEXT), { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+  });
+
+  bot.onText(/\/numinfo\s+(\d+)/, async (msg, match) => {
+    if (!isGroup(msg)) return;
+    const chatId = msg.chat.id;
+    const number = match[1];
+
+    const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/chain`, {
+        params: { number },
+        timeout: 30000,
+      });
+
+      if (!data.success || !data.results) {
+        return bot.editMessageText(ERR_NODATA(number), {
+          chat_id: chatId,
+          message_id: sent.message_id,
+          parse_mode: 'HTML',
+          reply_markup: mk(),
+        });
+      }
+
+      await bot.editMessageText(formatResults(data.results), {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+      sendJSONFile(chatId, bot, data, `${number}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+    }
+  });
+
+  bot.onText(/\/aadharinfo\s+(\d+)/, async (msg, match) => {
+    if (!isGroup(msg)) return;
+    const chatId = msg.chat.id;
+    const aadhaar = match[1];
+
+    const sent = await bot.sendMessage(chatId, LOADER_AAD, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/aadhaar`, {
+        params: { aadhaar },
+        timeout: 20000,
+      });
+
+      await bot.editMessageText(formatAadhaar(data), {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+      sendJSONFile(chatId, bot, data, `${aadhaar}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+    }
+  });
+
+  bot.onText(/\/pangstinfo\s+([A-Za-z0-9]+)/, async (msg, match) => {
+    if (!isGroup(msg)) return;
+    const chatId = msg.chat.id;
+    const pan = match[1].toUpperCase();
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
+      return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_to_message_id: msg.message_id });
+    }
+
+    const sent = await bot.sendMessage(chatId, LOADER_PAN, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/pangst`, {
+        params: { pan },
+        timeout: 20000,
+      });
+
+      if (!data.success || !data.result || !data.result.items || data.result.items.length === 0) {
+        return bot.editMessageText(`${HEADER}\n\n❌ No GST found for PAN ${c(pan)}.`, {
+          chat_id: chatId,
+          message_id: sent.message_id,
+          parse_mode: 'HTML',
+          reply_markup: mk(),
+        });
+      }
+
+      await bot.editMessageText(formatPAN(data), {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+      sendJSONFile(chatId, bot, data, `${pan}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+    }
+  });
+
+  bot.on('message', async (msg) => {
+    if (!isGroup(msg)) return;
+    const chatId = msg.chat.id;
+    const text = msg.text?.trim();
+
+    if (!text) return;
+
+    if (text.startsWith('/')) {
+      const cmd = text.split(/\s+/)[0].toLowerCase().replace('/', '');
+      if (!KNOWN_COMMANDS.includes(cmd)) {
+        return bot.sendMessage(chatId, UNKNOWN_CMD, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+      }
+      return;
+    }
+
+    if (!/^\d{5,15}$/.test(text)) {
+      return bot.sendMessage(chatId, '❌ Please send a valid number (5-15 digits).', { reply_to_message_id: msg.message_id });
+    }
+
+    const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/chain`, {
+        params: { number: text },
+        timeout: 30000,
+      });
+
+      if (!data.success || !data.results) {
+        return bot.editMessageText(ERR_NODATA(text), {
+          chat_id: chatId,
+          message_id: sent.message_id,
+          parse_mode: 'HTML',
+          reply_markup: mk(),
+        });
+      }
+
+      await bot.editMessageText(formatResults(data.results), {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+      sendJSONFile(chatId, bot, data, `${text}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+    }
+  });
+}
+
+module.exports = { setupBot };

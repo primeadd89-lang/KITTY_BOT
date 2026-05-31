@@ -1,0 +1,16 @@
+{
+  "name": "number-lookup-bot",
+  "version": "1.0.0",
+  "description": "Number lookup API with recursive alternate number chaining + Telegram bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "node-telegram-bot-api": "^0.66.0"
+  }
+}
