@@ -38,6 +38,7 @@ const HELP_TEXT = `${HEADER}
 /numinfo ${c('<number>')} — Look up phone number details
 /aadharinfo ${c('<aadhaar>')} — Look up Aadhaar family details
 /pangstinfo ${c('<PAN>')} — Look up GST from PAN
+/vehicleinfo ${c('<number>')} — Look up vehicle details
 /help — Show this message
 
 You can also send a phone number directly.`;
@@ -46,6 +47,7 @@ const UNKNOWN_CMD = q(`${HEADER}\n\n❌ ${b('Unknown command!')}\n\nUse /help to
 const LOADER_NUM = q(`⏳ ${b('KittyOsint')} is looking up the number...`);
 const LOADER_AAD = q(`⏳ ${b('KittyOsint')} is looking up the Aadhaar...`);
 const LOADER_PAN = q(`⏳ ${b('KittyOsint')} is looking up the PAN...`);
+const LOADER_VEH = q(`⏳ ${b('KittyOsint')} is looking up the vehicle...`);
 const ERR_NODATA = (n) => q(`${HEADER}\n\n❌ No data found for ${c(n)}.`);
 const ERR_FAIL = q(`${HEADER}\n\n❌ Lookup failed. Try again later.`);
 
@@ -142,6 +144,32 @@ function formatPAN(data) {
   return q(parts.join('\n'));
 }
 
+function formatVehicle(data) {
+  const r = data.result;
+  if (!r || !r.make_model) {
+    return q(`${HEADER}\n\n❌ No data found for vehicle ${c(data.vehicle)}.`);
+  }
+
+  let parts = [HEADER];
+  parts.push(`\n┌─── VEHICLE INFO ───┐`);
+  parts.push(fmtLine('🔢', 'Number', c(data.vehicle)));
+  parts.push(fmtLine('🚗', 'Model', fval(r.make_model)));
+  parts.push(fmtLine('🏭', 'Make', fval(r.make_name)));
+  parts.push(fmtLine('⛽', 'Fuel', fval(r.fuel_type)));
+  parts.push(fmtLine('🎨', 'Color', fval(r.vehicle_color)));
+  parts.push(fmtLine('📅', 'Reg. Date', fval(r.registration_date)));
+  parts.push(fmtLine('👤', 'Owner', fval(r.owner_name)));
+  parts.push(fmtLine('📍', 'Address', fval(r.permanent_address)));
+  parts.push(fmtLine('🔧', 'Engine', c(r.engine_number || '')));
+  parts.push(fmtLine('🔩', 'Chassis', c(r.chassis_number || '')));
+  parts.push(fmtLine('🏷️', 'Type', fval(r.vehicle_type)));
+  parts.push(fmtLine('🏪', 'Insurer', fval(r.previous_insurer)));
+  if (r.previous_policy_expiry_date) parts.push(fmtLine('📄', 'Policy Expiry', fval(r.previous_policy_expiry_date)));
+  parts.push(`└${'─'.repeat(18)}┘`);
+
+  return q(parts.join('\n'));
+}
+
 async function sendJSONFile(chatId, bot, data, filename, replyId) {
   const json = JSON.stringify(data, null, 2);
   try {
@@ -164,7 +192,7 @@ function isGroup(msg) {
   return result;
 }
 
-const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo'];
+const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo', 'vehicleinfo'];
 
 const CHANNEL_UN = process.env.CHANNEL || 'kittyxosintupdates';
 
@@ -351,6 +379,53 @@ ${b('💡 Tip:')} You can also send a number directly!`;
         reply_markup: mk(),
       });
       sendJSONFile(chatId, bot, data, `${pan}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+    }
+  });
+
+  bot.onText(/\/vehicleinfo\s+(.+)/, async (msg, match) => {
+    if (!isGroup(msg)) return;
+    if (!(await requireChannel(bot, msg))) {
+      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    }
+    const chatId = msg.chat.id;
+    const vehicle = match[1].trim().toUpperCase();
+
+    if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) {
+      return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    }
+
+    const sent = await bot.sendMessage(chatId, LOADER_VEH, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/vehicle`, {
+        params: { vehicle },
+        timeout: 20000,
+      });
+
+      if (!data.success || !data.result || !data.result.make_model) {
+        return bot.editMessageText(q(`${HEADER}\n\n❌ No data found for vehicle ${c(vehicle)}.`), {
+          chat_id: chatId,
+          message_id: sent.message_id,
+          parse_mode: 'HTML',
+          reply_markup: mk(),
+        });
+      }
+
+      await bot.editMessageText(formatVehicle(data), {
+        chat_id: chatId,
+        message_id: sent.message_id,
+        parse_mode: 'HTML',
+        reply_markup: mk(),
+      });
+      sendJSONFile(chatId, bot, data, `${vehicle}.json`, msg.message_id);
     } catch {
       await bot.editMessageText(ERR_FAIL, {
         chat_id: chatId,

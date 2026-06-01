@@ -22,6 +22,7 @@ app.get('/', (req, res) => {
       chain: '/api/chain?number=6296913508',
       aadhaar: '/api/aadhaar?aadhaar=828333416307',
       pangst: '/api/pangst?pan=ABCDE1234F',
+      vehicle: '/api/vehicle?vehicle=DL10CA7539',
     },
   });
 });
@@ -66,6 +67,7 @@ function startHealthMonitor(bot) {
       axios.get(`${apiBase}/api/chain?number=6296913508`, { timeout: 15000 }).catch(() => { allUp = false; }),
       axios.get(`${apiBase}/api/aadhaar?aadhaar=828333416307`, { timeout: 15000 }).catch(() => { allUp = false; }),
       axios.get(`${apiBase}/api/pangst?pan=AAACB4834H`, { timeout: 15000 }).catch(() => { allUp = false; }),
+      axios.get(`${apiBase}/api/vehicle?vehicle=DL10CA7539`, { timeout: 15000 }).catch(() => { allUp = false; }),
     ];
 
     await Promise.all(checks);

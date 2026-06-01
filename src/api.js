@@ -133,4 +133,50 @@ router.get('/pangst', async (req, res) => {
   }
 });
 
+const VEHICLE_API = 'https://vehicle-information-seven.vercel.app/info';
+
+router.get('/vehicle', async (req, res) => {
+  const { vehicle } = req.query;
+  if (!vehicle || !/^[A-Za-z]{2}\s?[0-9]{1,2}\s?[A-Za-z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) {
+    return res.status(400).json({
+      success: false,
+      owner: OWNER,
+      channel: CHANNEL,
+      message: 'Provide a valid vehicle number (e.g. DL10CA7539)',
+    });
+  }
+
+  try {
+    const { data } = await axios.get(VEHICLE_API, {
+      params: { vehicle: vehicle.toUpperCase() },
+      timeout: 15000,
+    });
+
+    if (!data || data.error) {
+      return res.json({
+        success: true,
+        owner: OWNER,
+        channel: CHANNEL,
+        message: 'No data found for this vehicle number',
+        result: null,
+      });
+    }
+
+    res.json({
+      success: true,
+      owner: OWNER,
+      channel: CHANNEL,
+      vehicle: vehicle.toUpperCase(),
+      result: data,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      owner: OWNER,
+      channel: CHANNEL,
+      message: 'Vehicle lookup failed',
+    });
+  }
+});
+
 module.exports = router;
