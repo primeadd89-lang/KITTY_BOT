@@ -308,19 +308,8 @@ function setupBot(bot) {
       const name = esc(member.first_name || 'User');
       const text = `${HEADER}
 
-🎉 ${b('Welcome ' + name + '!')} ${b('KittyOsint')} is here.
-
-┌─── ${b('Available Commands')} ───┐
-│ 📞 ${b('/numinfo')} ${c('<number>')}
-│   └ Look up phone number details
-│ 🆔 ${b('/aadharinfo')} ${c('<aadhaar>')}
-│   └ Look up Aadhaar family details
-│ ❓ ${b('/help')}
-│   └ Show this message
-└${'─'.repeat(28)}┘
-
-${b('💡 Tip:')} You can also send a number directly!`;
-      bot.sendMessage(chatId, q(text), { parse_mode: 'HTML', reply_markup: rk() });
+🎉 ${b('Welcome ' + name + '!')} ${b('KittyOsint')} is ready.`;
+      bot.sendMessage(chatId, q(text), { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔍 GET INFO', callback_data: 'getinfo' }]] } });
     });
   });
 
@@ -476,6 +465,13 @@ ${b('💡 Tip:')} You can also send a number directly!`;
         reply_markup: mk(),
       });
     }
+  });
+
+  bot.on('callback_query', async (q) => {
+    if (q.data !== 'getinfo') return;
+    const chatId = q.message.chat.id;
+    await bot.answerCallbackQuery(q.id);
+    bot.sendMessage(chatId, q(`🎉 ${b('Welcome to KittyOsint!')}\n\nSend a number to look up, or use the commands.\n\n${HELP_TEXT}`), { parse_mode: 'HTML', reply_markup: rk() });
   });
 }
 
