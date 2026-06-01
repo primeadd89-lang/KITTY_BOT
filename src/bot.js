@@ -27,6 +27,8 @@ const PROMPT_AAD = q(`${HEADER}\n\n🆔 ${b('Aadhaar Lookup')}\n\nPlease enter a
 const PROMPT_PAN = q(`${HEADER}\n\n📄 ${b('PAN to GST Lookup')}\n\nPlease enter a 10-character PAN.\n\nExample: ${c('ABCDE1234F')}`);
 const PROMPT_VEH = q(`${HEADER}\n\n🚗 ${b('Vehicle Lookup')}\n\nPlease enter a vehicle number.\n\nExample: ${c('DL10CA7539')}`);
 
+const userState = new Map();
+
 function q(text) {
   return `<blockquote>${text}</blockquote>`;
 }
@@ -241,6 +243,63 @@ async function requireChannel(bot, msg) {
 function setupBot(bot) {
   const JOIN_GROUP_TEXT = q(`❌ ${b('Group Only!')}\n\nThis bot only works in the authorized group.\nJoin the group to use it.`);
 
+  async function processNumLookup(msg, chatId, number) {
+    const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/chain`, { params: { number }, timeout: 30000 });
+      if (!data.success || !data.results) {
+        return bot.editMessageText(ERR_NODATA(number), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      }
+      await bot.editMessageText(formatResults(data.results), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      sendJSONFile(chatId, bot, data, `${number}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+    }
+  }
+
+  async function processAadLookup(msg, chatId, aadhaar) {
+    const sent = await bot.sendMessage(chatId, LOADER_AAD, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/aadhaar`, { params: { aadhaar }, timeout: 20000 });
+      await bot.editMessageText(formatAadhaar(data), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      sendJSONFile(chatId, bot, data, `${aadhaar}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+    }
+  }
+
+  async function processPanLookup(msg, chatId, pan) {
+    const sent = await bot.sendMessage(chatId, LOADER_PAN, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/pangst`, { params: { pan }, timeout: 20000 });
+      if (!data.success || !data.result || !data.result.items || data.result.items.length === 0) {
+        return bot.editMessageText(`${HEADER}\n\n❌ No GST found for PAN ${c(pan)}.`, { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      }
+      await bot.editMessageText(formatPAN(data), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      sendJSONFile(chatId, bot, data, `${pan}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+    }
+  }
+
+  async function processVehLookup(msg, chatId, vehicle) {
+    const sent = await bot.sendMessage(chatId, LOADER_VEH, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/vehicle`, { params: { vehicle }, timeout: 20000 });
+      if (!data.success || !data.result || !data.result.make_model) {
+        return bot.editMessageText(q(`${HEADER}\n\n❌ No data found for vehicle ${c(vehicle)}.`), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      }
+      await bot.editMessageText(formatVehicle(data), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      sendJSONFile(chatId, bot, data, `${vehicle}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+    }
+  }
+
   bot.on('new_chat_members', (msg) => {
     if (!isGroup(msg)) return;
     const chatId = msg.chat.id;
@@ -289,41 +348,11 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
     const chatId = msg.chat.id;
     const number = match[1];
-    if (!number) return bot.sendMessage(chatId, PROMPT_NUM, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
-
-    const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
-
-    try {
-      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const { data } = await axios.get(`${API_URL}/api/chain`, {
-        params: { number },
-        timeout: 30000,
-      });
-
-      if (!data.success || !data.results) {
-        return bot.editMessageText(ERR_NODATA(number), {
-          chat_id: chatId,
-          message_id: sent.message_id,
-          parse_mode: 'HTML',
-          reply_markup: mk(),
-        });
-      }
-
-      await bot.editMessageText(formatResults(data.results), {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
-      sendJSONFile(chatId, bot, data, `${number}.json`, msg.message_id);
-    } catch {
-      await bot.editMessageText(ERR_FAIL, {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
+    if (!number) {
+      userState.set(msg.from.id, { cmd: 'numinfo', chatId });
+      return bot.sendMessage(chatId, PROMPT_NUM, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
+    return processNumLookup(msg, chatId, number);
   });
 
   bot.onText(/\/aadharinfo(?:\s+(\d+))?$/, async (msg, match) => {
@@ -333,32 +362,11 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
     const chatId = msg.chat.id;
     const aadhaar = match[1];
-    if (!aadhaar) return bot.sendMessage(chatId, PROMPT_AAD, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
-
-    const sent = await bot.sendMessage(chatId, LOADER_AAD, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
-
-    try {
-      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const { data } = await axios.get(`${API_URL}/api/aadhaar`, {
-        params: { aadhaar },
-        timeout: 20000,
-      });
-
-      await bot.editMessageText(formatAadhaar(data), {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
-      sendJSONFile(chatId, bot, data, `${aadhaar}.json`, msg.message_id);
-    } catch {
-      await bot.editMessageText(ERR_FAIL, {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
+    if (!aadhaar) {
+      userState.set(msg.from.id, { cmd: 'aadharinfo', chatId });
+      return bot.sendMessage(chatId, PROMPT_AAD, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
+    return processAadLookup(msg, chatId, aadhaar);
   });
 
   bot.onText(/\/pangstinfo(?:\s+([A-Za-z0-9]+))?$/, async (msg, match) => {
@@ -368,44 +376,14 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
     const chatId = msg.chat.id;
     const pan = match[1] ? match[1].toUpperCase() : null;
-    if (!pan) return bot.sendMessage(chatId, PROMPT_PAN, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
+    if (!pan) {
+      userState.set(msg.from.id, { cmd: 'pangstinfo', chatId });
+      return bot.sendMessage(chatId, PROMPT_PAN, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
+    }
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
       return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
-
-    const sent = await bot.sendMessage(chatId, LOADER_PAN, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
-
-    try {
-      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const { data } = await axios.get(`${API_URL}/api/pangst`, {
-        params: { pan },
-        timeout: 20000,
-      });
-
-      if (!data.success || !data.result || !data.result.items || data.result.items.length === 0) {
-        return bot.editMessageText(`${HEADER}\n\n❌ No GST found for PAN ${c(pan)}.`, {
-          chat_id: chatId,
-          message_id: sent.message_id,
-          parse_mode: 'HTML',
-          reply_markup: mk(),
-        });
-      }
-
-      await bot.editMessageText(formatPAN(data), {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
-      sendJSONFile(chatId, bot, data, `${pan}.json`, msg.message_id);
-    } catch {
-      await bot.editMessageText(ERR_FAIL, {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
-    }
+    return processPanLookup(msg, chatId, pan);
   });
 
   bot.onText(/\/vehicleinfo(?:\s+(.+))?$/, async (msg, match) => {
@@ -415,53 +393,47 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
     const chatId = msg.chat.id;
     const vehicle = match[1] ? match[1].trim().toUpperCase() : null;
-    if (!vehicle) return bot.sendMessage(chatId, PROMPT_VEH, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
+    if (!vehicle) {
+      userState.set(msg.from.id, { cmd: 'vehicleinfo', chatId });
+      return bot.sendMessage(chatId, PROMPT_VEH, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
+    }
 
     if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) {
       return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
-
-    const sent = await bot.sendMessage(chatId, LOADER_VEH, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
-
-    try {
-      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const { data } = await axios.get(`${API_URL}/api/vehicle`, {
-        params: { vehicle },
-        timeout: 20000,
-      });
-
-      if (!data.success || !data.result || !data.result.make_model) {
-        return bot.editMessageText(q(`${HEADER}\n\n❌ No data found for vehicle ${c(vehicle)}.`), {
-          chat_id: chatId,
-          message_id: sent.message_id,
-          parse_mode: 'HTML',
-          reply_markup: mk(),
-        });
-      }
-
-      await bot.editMessageText(formatVehicle(data), {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
-      sendJSONFile(chatId, bot, data, `${vehicle}.json`, msg.message_id);
-    } catch {
-      await bot.editMessageText(ERR_FAIL, {
-        chat_id: chatId,
-        message_id: sent.message_id,
-        parse_mode: 'HTML',
-        reply_markup: mk(),
-      });
-    }
+    return processVehLookup(msg, chatId, vehicle);
   });
 
   bot.on('message', async (msg) => {
     if (!isGroup(msg)) return;
     const chatId = msg.chat.id;
     const text = msg.text?.trim();
-
     if (!text) return;
+
+    const state = userState.get(msg.from.id);
+    if (state) {
+      userState.delete(msg.from.id);
+      const input = text;
+
+      if (state.cmd === 'numinfo') {
+        if (!/^\d{5,15}$/.test(input)) return bot.sendMessage(chatId, '❌ Phone number must be 5-15 digits.', { reply_markup: rk(), reply_to_message_id: msg.message_id });
+        return processNumLookup(bot, msg, chatId, input);
+      }
+      if (state.cmd === 'aadharinfo') {
+        if (!/^\d{12}$/.test(input)) return bot.sendMessage(chatId, '❌ Aadhaar must be exactly 12 digits.', { reply_markup: rk(), reply_to_message_id: msg.message_id });
+        return processAadLookup(bot, msg, chatId, input);
+      }
+      if (state.cmd === 'pangstinfo') {
+        const pan = input.toUpperCase();
+        if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
+        return processPanLookup(bot, msg, chatId, pan);
+      }
+      if (state.cmd === 'vehicleinfo') {
+        const veh = input.toUpperCase();
+        if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(veh)) return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
+        return processVehLookup(bot, msg, chatId, veh);
+      }
+    }
 
     if (text.startsWith('/')) {
       const cmd = text.split(/\s+/)[0].toLowerCase().replace('/', '');
