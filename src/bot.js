@@ -11,6 +11,17 @@ function mk() {
   return { inline_keyboard: [row] };
 }
 
+function rk() {
+  return {
+    keyboard: [
+      [{ text: '📞 /numinfo' }, { text: '🆔 /aadharinfo' }],
+      [{ text: '📄 /pangstinfo' }, { text: '🚗 /vehicleinfo' }],
+      [{ text: '❓ /help' }],
+    ],
+    resize_keyboard: true,
+  };
+}
+
 function q(text) {
   return `<blockquote>${text}</blockquote>`;
 }
@@ -245,25 +256,25 @@ function setupBot(bot) {
 └${'─'.repeat(28)}┘
 
 ${b('💡 Tip:')} You can also send a number directly!`;
-      bot.sendMessage(chatId, q(text), { parse_mode: 'HTML', reply_markup: mk() });
+      bot.sendMessage(chatId, q(text), { parse_mode: 'HTML', reply_markup: rk() });
     });
   });
 
   bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     if (!isGroup(msg)) {
-      return bot.sendMessage(chatId, JOIN_GROUP_TEXT, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+      return bot.sendMessage(chatId, JOIN_GROUP_TEXT, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
     bot.sendMessage(
       chatId,
       q(`🎉 ${b('Welcome to KittyOsint!')}\n\nSend a phone number to look up its details, or use the commands below.\n\n${HELP_TEXT}`),
-      { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id }
+      { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id }
     );
   });
 
   bot.onText(/\/help/, (msg) => {
     if (!isGroup(msg)) return;
-    bot.sendMessage(msg.chat.id, q(HELP_TEXT), { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    bot.sendMessage(msg.chat.id, q(HELP_TEXT), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
   });
 
   bot.onText(/\/numinfo\s+(\d+)/, async (msg, match) => {
@@ -351,7 +362,7 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     const chatId = msg.chat.id;
     const pan = match[1].toUpperCase();
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
-      return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_to_message_id: msg.message_id });
+      return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
 
     const sent = await bot.sendMessage(chatId, LOADER_PAN, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
@@ -398,7 +409,7 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     const vehicle = match[1].trim().toUpperCase();
 
     if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) {
-      return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+      return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
 
     const sent = await bot.sendMessage(chatId, LOADER_VEH, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
@@ -446,13 +457,13 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     if (text.startsWith('/')) {
       const cmd = text.split(/\s+/)[0].toLowerCase().replace('/', '');
       if (!KNOWN_COMMANDS.includes(cmd)) {
-        return bot.sendMessage(chatId, UNKNOWN_CMD, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+        return bot.sendMessage(chatId, UNKNOWN_CMD, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
       }
       return;
     }
 
     if (!/^\d{5,15}$/.test(text)) {
-      return bot.sendMessage(chatId, '❌ Please send a valid number (5-15 digits).', { reply_to_message_id: msg.message_id });
+      return bot.sendMessage(chatId, '❌ Please send a valid number (5-15 digits).', { reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
 
     if (!(await requireChannel(bot, msg))) {
