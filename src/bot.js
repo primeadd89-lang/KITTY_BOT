@@ -402,7 +402,7 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     if (!text) return;
 
     const state = userState.get(msg.from.id);
-    if (state) {
+    if (state && !text.startsWith('/')) {
       userState.delete(msg.from.id);
       if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
       const input = text;
