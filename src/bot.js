@@ -343,64 +343,55 @@ ${b('💡 Tip:')} You can also send a number directly!`;
 
   bot.onText(/\/numinfo(?:\s+(\d+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
-    if (!(await requireChannel(bot, msg))) {
-      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
-    }
     const chatId = msg.chat.id;
     const number = match[1];
     if (!number) {
       userState.set(msg.from.id, { cmd: 'numinfo', chatId });
+      if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
       return bot.sendMessage(chatId, PROMPT_NUM, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
+    if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     return processNumLookup(msg, chatId, number);
   });
 
   bot.onText(/\/aadharinfo(?:\s+(\d+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
-    if (!(await requireChannel(bot, msg))) {
-      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
-    }
     const chatId = msg.chat.id;
     const aadhaar = match[1];
     if (!aadhaar) {
       userState.set(msg.from.id, { cmd: 'aadharinfo', chatId });
+      if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
       return bot.sendMessage(chatId, PROMPT_AAD, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
+    if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     return processAadLookup(msg, chatId, aadhaar);
   });
 
   bot.onText(/\/pangstinfo(?:\s+([A-Za-z0-9]+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
-    if (!(await requireChannel(bot, msg))) {
-      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
-    }
     const chatId = msg.chat.id;
     const pan = match[1] ? match[1].toUpperCase() : null;
     if (!pan) {
       userState.set(msg.from.id, { cmd: 'pangstinfo', chatId });
+      if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
       return bot.sendMessage(chatId, PROMPT_PAN, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
-    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
-      return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
-    }
+    if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
     return processPanLookup(msg, chatId, pan);
   });
 
   bot.onText(/\/vehicleinfo(?:\s+(.+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
-    if (!(await requireChannel(bot, msg))) {
-      return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
-    }
     const chatId = msg.chat.id;
     const vehicle = match[1] ? match[1].trim().toUpperCase() : null;
     if (!vehicle) {
       userState.set(msg.from.id, { cmd: 'vehicleinfo', chatId });
+      if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
       return bot.sendMessage(chatId, PROMPT_VEH, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
-
-    if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) {
-      return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
-    }
+    if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     return processVehLookup(msg, chatId, vehicle);
   });
 
@@ -413,25 +404,26 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     const state = userState.get(msg.from.id);
     if (state) {
       userState.delete(msg.from.id);
+      if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
       const input = text;
 
       if (state.cmd === 'numinfo') {
         if (!/^\d{5,15}$/.test(input)) return bot.sendMessage(chatId, '❌ Phone number must be 5-15 digits.', { reply_markup: rk(), reply_to_message_id: msg.message_id });
-        return processNumLookup(bot, msg, chatId, input);
+        return processNumLookup(msg, chatId, input);
       }
       if (state.cmd === 'aadharinfo') {
         if (!/^\d{12}$/.test(input)) return bot.sendMessage(chatId, '❌ Aadhaar must be exactly 12 digits.', { reply_markup: rk(), reply_to_message_id: msg.message_id });
-        return processAadLookup(bot, msg, chatId, input);
+        return processAadLookup(msg, chatId, input);
       }
       if (state.cmd === 'pangstinfo') {
         const pan = input.toUpperCase();
         if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
-        return processPanLookup(bot, msg, chatId, pan);
+        return processPanLookup(msg, chatId, pan);
       }
       if (state.cmd === 'vehicleinfo') {
         const veh = input.toUpperCase();
         if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(veh)) return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
-        return processVehLookup(bot, msg, chatId, veh);
+        return processVehLookup(msg, chatId, veh);
       }
     }
 
