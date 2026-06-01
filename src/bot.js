@@ -197,19 +197,51 @@ function formatFreeFire(data) {
   if (!r) return q(`${HEADER}\n\n❌ No data found for UID ${c(data.uid)}.`);
 
   let parts = [HEADER];
-  parts.push(`\n┌─── FREE FIRE INFO ───┐`);
+  parts.push(`\n┌─── BASIC INFO ───┐`);
+  const b = r.basicInfo || {};
+  parts.push(fmtLine('🆔', 'UID', c(b.accountId || data.uid)));
+  if (b.nickname) parts.push(fmtLine('👤', 'Nickname', fval(b.nickname)));
+  if (b.level) parts.push(fmtLine('📊', 'Level', c(b.level)));
+  if (b.region) parts.push(fmtLine('🌍', 'Region', fval(b.region)));
+  if (b.liked) parts.push(fmtLine('❤️', 'Likes', c(b.liked)));
+  if (b.lastLoginAt) parts.push(fmtLine('🕐', 'Last Login', c(new Date(Number(b.lastLoginAt) * 1000).toLocaleString())));
+  if (b.createAt) parts.push(fmtLine('📅', 'Created', c(new Date(Number(b.createAt) * 1000).toLocaleString())));
+  if (b.releaseVersion) parts.push(fmtLine('📱', 'Version', fval(b.releaseVersion)));
+  parts.push(`└${'─'.repeat(18)}┘`);
 
-  const fields = [
-    ['🆔', 'UID', c(data.uid)],
-  ];
+  if (r.clanBasicInfo) {
+    const cbi = r.clanBasicInfo;
+    parts.push(`\n┌─── CLAN INFO ───┐`);
+    if (cbi.clanName) parts.push(fmtLine('🏰', 'Clan', fval(cbi.clanName)));
+    if (cbi.clanLevel) parts.push(fmtLine('📊', 'Level', c(cbi.clanLevel)));
+    if (cbi.memberNum) parts.push(fmtLine('👥', 'Members', c(cbi.memberNum + '/' + cbi.capacity)));
+    parts.push(`└${'─'.repeat(18)}┘`);
+  }
 
-  Object.entries(r).forEach(([key, val]) => {
-    const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    const v = val ? esc(String(val)) : '';
-    if (v) parts.push(fmtLine('•', label, v));
-  });
+  if (r.petInfo) {
+    const p = r.petInfo;
+    parts.push(`\n┌─── PET INFO ───┐`);
+    if (p.name) parts.push(fmtLine('🐾', 'Name', fval(p.name)));
+    if (p.level) parts.push(fmtLine('📊', 'Level', c(p.level)));
+    parts.push(`└${'─'.repeat(18)}┘`);
+  }
 
-  parts.push(`└${'─'.repeat(22)}┘`);
+  if (r.socialInfo) {
+    const s = r.socialInfo;
+    parts.push(`\n┌─── SOCIAL INFO ───┐`);
+    if (s.signature) parts.push(fmtLine('📝', 'Bio', fval(s.signature)));
+    if (s.gender) parts.push(fmtLine('⚤', 'Gender', fval(s.gender.replace('Gender_', ''))));
+    if (s.language) parts.push(fmtLine('🗣️', 'Language', fval(s.language.replace('Language_', ''))));
+    parts.push(`└${'─'.repeat(22)}┘`);
+  }
+
+  if (r.creditScoreInfo) {
+    const cs = r.creditScoreInfo;
+    parts.push(`\n┌─── CREDIT SCORE ───┐`);
+    if (cs.creditScore) parts.push(fmtLine('💳', 'Score', c(cs.creditScore)));
+    parts.push(`└${'─'.repeat(22)}┘`);
+  }
+
   return q(parts.join('\n'));
 }
 
