@@ -14,13 +14,18 @@ function mk() {
 function rk() {
   return {
     keyboard: [
-      [{ text: '📞 /numinfo' }, { text: '🆔 /aadharinfo' }],
-      [{ text: '📄 /pangstinfo' }, { text: '🚗 /vehicleinfo' }],
-      [{ text: '❓ /help' }],
+      [{ text: '/numinfo' }, { text: '/aadharinfo' }],
+      [{ text: '/pangstinfo' }, { text: '/vehicleinfo' }],
+      [{ text: '/help' }],
     ],
     resize_keyboard: true,
   };
 }
+
+const PROMPT_NUM = q(`${HEADER}\n\n📞 ${b('Number Lookup')}\n\nPlease enter a phone number (5-15 digits).\n\nExample: ${c('9939440327')}`);
+const PROMPT_AAD = q(`${HEADER}\n\n🆔 ${b('Aadhaar Lookup')}\n\nPlease enter a 12-digit Aadhaar number.\n\nExample: ${c('908767335776')}`);
+const PROMPT_PAN = q(`${HEADER}\n\n📄 ${b('PAN to GST Lookup')}\n\nPlease enter a 10-character PAN.\n\nExample: ${c('ABCDE1234F')}`);
+const PROMPT_VEH = q(`${HEADER}\n\n🚗 ${b('Vehicle Lookup')}\n\nPlease enter a vehicle number.\n\nExample: ${c('DL10CA7539')}`);
 
 function q(text) {
   return `<blockquote>${text}</blockquote>`;
@@ -277,13 +282,14 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     bot.sendMessage(msg.chat.id, q(HELP_TEXT), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
   });
 
-  bot.onText(/\/numinfo\s+(\d+)/, async (msg, match) => {
+  bot.onText(/\/numinfo(?:\s+(\d+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
     if (!(await requireChannel(bot, msg))) {
       return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     }
     const chatId = msg.chat.id;
     const number = match[1];
+    if (!number) return bot.sendMessage(chatId, PROMPT_NUM, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
 
     const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
 
@@ -320,13 +326,14 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
   });
 
-  bot.onText(/\/aadharinfo\s+(\d+)/, async (msg, match) => {
+  bot.onText(/\/aadharinfo(?:\s+(\d+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
     if (!(await requireChannel(bot, msg))) {
       return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     }
     const chatId = msg.chat.id;
     const aadhaar = match[1];
+    if (!aadhaar) return bot.sendMessage(chatId, PROMPT_AAD, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
 
     const sent = await bot.sendMessage(chatId, LOADER_AAD, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
 
@@ -354,13 +361,14 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
   });
 
-  bot.onText(/\/pangstinfo\s+([A-Za-z0-9]+)/, async (msg, match) => {
+  bot.onText(/\/pangstinfo(?:\s+([A-Za-z0-9]+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
     if (!(await requireChannel(bot, msg))) {
       return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     }
     const chatId = msg.chat.id;
-    const pan = match[1].toUpperCase();
+    const pan = match[1] ? match[1].toUpperCase() : null;
+    if (!pan) return bot.sendMessage(chatId, PROMPT_PAN, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
     if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
       return bot.sendMessage(chatId, '❌ Invalid PAN. Format: ABCDE1234F', { reply_markup: rk(), reply_to_message_id: msg.message_id });
     }
@@ -400,13 +408,14 @@ ${b('💡 Tip:')} You can also send a number directly!`;
     }
   });
 
-  bot.onText(/\/vehicleinfo\s+(.+)/, async (msg, match) => {
+  bot.onText(/\/vehicleinfo(?:\s+(.+))?$/, async (msg, match) => {
     if (!isGroup(msg)) return;
     if (!(await requireChannel(bot, msg))) {
       return bot.sendMessage(msg.chat.id, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
     }
     const chatId = msg.chat.id;
-    const vehicle = match[1].trim().toUpperCase();
+    const vehicle = match[1] ? match[1].trim().toUpperCase() : null;
+    if (!vehicle) return bot.sendMessage(chatId, PROMPT_VEH, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
 
     if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(vehicle)) {
       return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
