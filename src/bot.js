@@ -16,6 +16,7 @@ function rk() {
     keyboard: [
       [{ text: '/numinfo' }, { text: '/aadharinfo' }],
       [{ text: '/pangstinfo' }, { text: '/vehicleinfo' }],
+      [{ text: '/ffinfo' }],
       [{ text: '/help' }],
     ],
     resize_keyboard: true,
@@ -26,6 +27,7 @@ const PROMPT_NUM = q(`${HEADER}\n\n📞 ${b('Number Lookup')}\n\nPlease enter a 
 const PROMPT_AAD = q(`${HEADER}\n\n🆔 ${b('Aadhaar Lookup')}\n\nPlease enter a 12-digit Aadhaar number.\n\nExample: ${c('908767335776')}`);
 const PROMPT_PAN = q(`${HEADER}\n\n📄 ${b('PAN to GST Lookup')}\n\nPlease enter a 10-character PAN.\n\nExample: ${c('ABCDE1234F')}`);
 const PROMPT_VEH = q(`${HEADER}\n\n🚗 ${b('Vehicle Lookup')}\n\nPlease enter a vehicle number.\n\nExample: ${c('DL10CA7539')}`);
+const PROMPT_FF = q(`${HEADER}\n\n🎮 ${b('Free Fire Lookup')}\n\nPlease enter a Free Fire UID.\n\nExample: ${c('123456789')}`);
 
 const userState = new Map();
 
@@ -57,6 +59,7 @@ const HELP_TEXT = `${HEADER}
 /aadharinfo ${c('<aadhaar>')} — Look up Aadhaar family details
 /pangstinfo ${c('<PAN>')} — Look up GST from PAN
 /vehicleinfo ${c('<number>')} — Look up vehicle details
+/ffinfo ${c('<uid>')} — Look up Free Fire player info
 /help — Show this message
 
 You can also send a phone number directly.`;
@@ -66,6 +69,7 @@ const LOADER_NUM = q(`⏳ ${b('KittyOsint')} is looking up the number...`);
 const LOADER_AAD = q(`⏳ ${b('KittyOsint')} is looking up the Aadhaar...`);
 const LOADER_PAN = q(`⏳ ${b('KittyOsint')} is looking up the PAN...`);
 const LOADER_VEH = q(`⏳ ${b('KittyOsint')} is looking up the vehicle...`);
+const LOADER_FF = q(`⏳ ${b('KittyOsint')} is looking up Free Fire info...`);
 const ERR_NODATA = (n) => q(`${HEADER}\n\n❌ No data found for ${c(n)}.`);
 const ERR_FAIL = q(`${HEADER}\n\n❌ Lookup failed. Try again later.`);
 
@@ -188,6 +192,27 @@ function formatVehicle(data) {
   return q(parts.join('\n'));
 }
 
+function formatFreeFire(data) {
+  const r = data.result;
+  if (!r) return q(`${HEADER}\n\n❌ No data found for UID ${c(data.uid)}.`);
+
+  let parts = [HEADER];
+  parts.push(`\n┌─── FREE FIRE INFO ───┐`);
+
+  const fields = [
+    ['🆔', 'UID', c(data.uid)],
+  ];
+
+  Object.entries(r).forEach(([key, val]) => {
+    const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const v = val ? esc(String(val)) : '';
+    if (v) parts.push(fmtLine('•', label, v));
+  });
+
+  parts.push(`└${'─'.repeat(22)}┘`);
+  return q(parts.join('\n'));
+}
+
 async function sendJSONFile(chatId, bot, data, filename, replyId) {
   const json = JSON.stringify(data, null, 2);
   try {
@@ -195,7 +220,6 @@ async function sendJSONFile(chatId, bot, data, filename, replyId) {
       caption: `📥 ${filename}`,
       reply_to_message_id: replyId,
       reply_markup: mk(),
-    }, {
       filename,
       contentType: 'application/json',
     });
@@ -210,7 +234,7 @@ function isGroup(msg) {
   return result;
 }
 
-const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo', 'vehicleinfo'];
+const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo', 'vehicleinfo', 'ffinfo'];
 
 const CHANNEL_UN = process.env.CHANNEL || 'kittyxosintupdates';
 
@@ -300,6 +324,21 @@ function setupBot(bot) {
     }
   }
 
+  async function processFfLookup(msg, chatId, uid) {
+    const sent = await bot.sendMessage(chatId, LOADER_FF, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
+    try {
+      const API_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const { data } = await axios.get(`${API_URL}/api/ffinfo`, { params: { uid }, timeout: 20000 });
+      if (!data.success || !data.result) {
+        return bot.editMessageText(q(`${HEADER}\n\n❌ No data found for UID ${c(uid)}.`), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      }
+      await bot.editMessageText(formatFreeFire(data), { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+      sendJSONFile(chatId, bot, data, `${uid}.json`, msg.message_id);
+    } catch {
+      await bot.editMessageText(ERR_FAIL, { chat_id: chatId, message_id: sent.message_id, parse_mode: 'HTML', reply_markup: mk() });
+    }
+  }
+
   bot.on('new_chat_members', (msg) => {
     if (!isGroup(msg)) return;
     const chatId = msg.chat.id;
@@ -384,6 +423,19 @@ function setupBot(bot) {
     return processVehLookup(msg, chatId, vehicle);
   });
 
+  bot.onText(/\/ffinfo(?:\s+(\d+))?$/, async (msg, match) => {
+    if (!isGroup(msg)) return;
+    const chatId = msg.chat.id;
+    const uid = match[1];
+    if (!uid) {
+      userState.set(msg.from.id, { cmd: 'ffinfo', chatId });
+      if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+      return bot.sendMessage(chatId, PROMPT_FF, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
+    }
+    if (!(await requireChannel(bot, msg))) return bot.sendMessage(chatId, JOIN_REQUIRED, { parse_mode: 'HTML', reply_markup: channelKeyboard(), reply_to_message_id: msg.message_id });
+    return processFfLookup(msg, chatId, uid);
+  });
+
   bot.on('message', async (msg) => {
     if (!isGroup(msg)) return;
     const chatId = msg.chat.id;
@@ -413,6 +465,10 @@ function setupBot(bot) {
         const veh = input.toUpperCase();
         if (!/^[A-Z]{2}\s?[0-9]{1,2}\s?[A-Z]{1,2}\s?[0-9]{1,4}$/.test(veh)) return bot.sendMessage(chatId, q(`${HEADER}\n\n❌ ${b('Invalid vehicle number!')}\n\nFormat: ${c('DL10CA7539')}`), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
         return processVehLookup(msg, chatId, veh);
+      }
+      if (state.cmd === 'ffinfo') {
+        if (!/^\d{1,17}$/.test(input)) return bot.sendMessage(chatId, '❌ Free Fire UID must be numeric.', { reply_markup: rk(), reply_to_message_id: msg.message_id });
+        return processFfLookup(msg, chatId, input);
       }
     }
 

@@ -23,6 +23,7 @@ app.get('/', (req, res) => {
       aadhaar: '/api/aadhaar?aadhaar=828333416307',
       pangst: '/api/pangst?pan=ABCDE1234F',
       vehicle: '/api/vehicle?vehicle=DL10CA7539',
+      ffinfo: '/api/ffinfo?uid=123456789',
     },
   });
 });
@@ -68,6 +69,7 @@ function startHealthMonitor(bot) {
       axios.get(`${apiBase}/api/aadhaar?aadhaar=828333416307`, { timeout: 15000 }).catch(() => { allUp = false; }),
       axios.get(`${apiBase}/api/pangst?pan=AAACB4834H`, { timeout: 15000 }).catch(() => { allUp = false; }),
       axios.get(`${apiBase}/api/vehicle?vehicle=DL10CA7539`, { timeout: 15000 }).catch(() => { allUp = false; }),
+      axios.get(`${apiBase}/api/ffinfo?uid=123456789`, { timeout: 15000 }).catch(() => { allUp = false; }),
     ];
 
     await Promise.all(checks);

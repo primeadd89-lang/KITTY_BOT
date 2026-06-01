@@ -179,4 +179,50 @@ router.get('/vehicle', async (req, res) => {
   }
 });
 
+const FF_API = 'https://mafuuuu-info-api.vercel.app/mafu-info';
+
+router.get('/ffinfo', async (req, res) => {
+  const { uid } = req.query;
+  if (!uid || !/^\d{1,17}$/.test(uid)) {
+    return res.status(400).json({
+      success: false,
+      owner: OWNER,
+      channel: CHANNEL,
+      message: 'Provide a valid Free Fire UID (numeric)',
+    });
+  }
+
+  try {
+    const { data } = await axios.get(FF_API, {
+      params: { uid },
+      timeout: 15000,
+    });
+
+    if (!data) {
+      return res.json({
+        success: true,
+        owner: OWNER,
+        channel: CHANNEL,
+        message: 'No data found for this UID',
+        result: null,
+      });
+    }
+
+    res.json({
+      success: true,
+      owner: OWNER,
+      channel: CHANNEL,
+      uid,
+      result: data,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      owner: OWNER,
+      channel: CHANNEL,
+      message: 'Free Fire lookup failed',
+    });
+  }
+});
+
 module.exports = router;
