@@ -103,41 +103,29 @@ function formatResults(results) {
 }
 
 function formatAadhaar(data) {
-  const r = data.result;
-  if (!r || !r.success || !r.results || r.results.length === 0) {
+  if (!data.results || data.results.length === 0) {
     return q(`${HEADER}\n\n❌ No data found for this Aadhaar.`);
   }
 
   let parts = [HEADER];
+  parts.push(fmtLine('🆔', 'Aadhaar', c(data.aadhaar)));
+  parts.push(fmtLine('📊', 'Total Entries', c(data.count)));
 
-  r.results.forEach((entry, idx) => {
-    const rc = entry.ration_card_details || {};
-    const ai = entry.additional_info || {};
+  const seen = new Set();
+  data.results.forEach((entry, idx) => {
+    const key = entry.mobile + entry.name + entry.fname;
+    if (seen.has(key)) return;
+    seen.add(key);
 
-    if (r.results.length > 1) parts.push(`\n┌─── RESULT ${idx + 1} ───┐`);
-
-    parts.push(`\n┌─── RATION CARD ───┐`);
-    if (rc.ration_card_no) parts.push(fmtLine('📇', 'RC No.', c(rc.ration_card_no)));
-    if (rc.state_name) parts.push(fmtLine('🏛️', 'State', fval(rc.state_name)));
-    if (rc.district_name) parts.push(fmtLine('📍', 'District', fval(rc.district_name)));
-    if (rc.scheme_name) parts.push(fmtLine('📋', 'Scheme', fval(rc.scheme_name)));
+    parts.push(`\n┌─── ENTRY ${seen.size} ───┐`);
+    if (entry.name) parts.push(fmtLine('👤', 'Name', fval(entry.name)));
+    if (entry.fname) parts.push(fmtLine('👨', 'Father', fval(entry.fname)));
+    if (entry.mobile) parts.push(fmtLine('📞', 'Mobile', c(entry.mobile)));
+    if (entry.alt && entry.alt !== 'NA') parts.push(fmtLine('🔄', 'Alt Mobile', c(entry.alt)));
+    if (entry.address) parts.push(fmtLine('📍', 'Address', fval(entry.address)));
+    if (entry.circle) parts.push(fmtLine('📡', 'Circle', fval(entry.circle)));
+    if (entry.email && entry.email !== 'NA') parts.push(fmtLine('📧', 'Email', c(entry.email)));
     parts.push(`└${'─'.repeat(18)}┘`);
-
-    if (entry.members && entry.members.length > 0) {
-      parts.push(`\n┌─── FAMILY MEMBERS ───┐`);
-      entry.members.forEach(m => {
-        parts.push(`│ 👤 ${b(m.member_name)}`);
-        if (m.remark) parts.push(`│   Remark: ${fval(m.remark)}`);
-      });
-      parts.push(`└${'─'.repeat(22)}┘`);
-    }
-
-    parts.push(`\n┌─── ADDITIONAL INFO ───┐`);
-    parts.push(fmtLine('✅', 'Central Repository', ai.exists_in_central_repository ? 'Yes' : 'No'));
-    parts.push(fmtLine('🔄', 'IMPDs Allowed', ai.impds_transaction_allowed ? 'Yes' : 'No'));
-    parts.push(fmtLine('🏪', 'FPS Category', fval(ai.fps_category)));
-    parts.push(fmtLine('⚠️', 'Duplicate Benef.', ai.duplicate_aadhaar_beneficiary ? 'Yes' : 'No'));
-    parts.push(`└${'─'.repeat(22)}┘`);
   });
 
   return q(parts.join('\n'));
@@ -270,6 +258,8 @@ const KNOWN_COMMANDS = ['start', 'help', 'numinfo', 'aadharinfo', 'pangstinfo', 
 
 const CHANNEL_UN = process.env.CHANNEL || 'kittyxosintupdates';
 
+const JOIN_GROUP_TEXT = q(`❌ ${b('Group Only!')}\n\nThis bot only works in the authorized group.\nJoin the group to use it.`);
+
 const JOIN_REQUIRED = q(`${HEADER}
 
 🔒 ${b('Access Restricted')}
@@ -286,6 +276,13 @@ function channelKeyboard() {
   };
 }
 
+function groupKeyboard() {
+  const link = process.env.GROUP_LINK || 'https://t.me/thekittydev';
+  return {
+    inline_keyboard: [[{ text: '👥 Join Group', url: link }]],
+  };
+}
+
 async function requireChannel(bot, msg) {
   if (!msg.from) return false;
   try {
@@ -297,7 +294,13 @@ async function requireChannel(bot, msg) {
 }
 
 function setupBot(bot) {
-  const JOIN_GROUP_TEXT = q(`❌ ${b('Group Only!')}\n\nThis bot only works in the authorized group.\nJoin the group to use it.`);
+  async function requireGroup(msg) {
+    if (!isGroup(msg)) {
+      await bot.sendMessage(msg.chat.id, JOIN_GROUP_TEXT, { parse_mode: 'HTML', reply_markup: groupKeyboard(), reply_to_message_id: msg.message_id });
+      return false;
+    }
+    return true;
+  }
 
   async function processNumLookup(msg, chatId, number) {
     const sent = await bot.sendMessage(chatId, LOADER_NUM, { parse_mode: 'HTML', reply_markup: mk(), reply_to_message_id: msg.message_id });
@@ -384,11 +387,9 @@ function setupBot(bot) {
     });
   });
 
-  bot.onText(/\/start/, (msg) => {
+  bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
-    if (!isGroup(msg)) {
-      return bot.sendMessage(chatId, JOIN_GROUP_TEXT, { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
-    }
+    if (!(await requireGroup(msg))) return;
     bot.sendMessage(
       chatId,
       q(`🎉 ${b('Welcome to KittyOsint!')}\n\nSend a phone number to look up its details, or use the commands below.\n\n${HELP_TEXT}`),
@@ -396,13 +397,13 @@ function setupBot(bot) {
     );
   });
 
-  bot.onText(/\/help/, (msg) => {
-    if (!isGroup(msg)) return;
+  bot.onText(/\/help/, async (msg) => {
+    if (!(await requireGroup(msg))) return;
     bot.sendMessage(msg.chat.id, q(HELP_TEXT), { parse_mode: 'HTML', reply_markup: rk(), reply_to_message_id: msg.message_id });
   });
 
   bot.onText(/\/numinfo(?:\s+(\d+))?$/, async (msg, match) => {
-    if (!isGroup(msg)) return;
+    if (!(await requireGroup(msg))) return;
     const chatId = msg.chat.id;
     const number = match[1];
     if (!number) {
@@ -415,7 +416,7 @@ function setupBot(bot) {
   });
 
   bot.onText(/\/aadharinfo(?:\s+(\d+))?$/, async (msg, match) => {
-    if (!isGroup(msg)) return;
+    if (!(await requireGroup(msg))) return;
     const chatId = msg.chat.id;
     const aadhaar = match[1];
     if (!aadhaar) {
@@ -428,7 +429,7 @@ function setupBot(bot) {
   });
 
   bot.onText(/\/pangstinfo(?:\s+([A-Za-z0-9]+))?$/, async (msg, match) => {
-    if (!isGroup(msg)) return;
+    if (!(await requireGroup(msg))) return;
     const chatId = msg.chat.id;
     const pan = match[1] ? match[1].toUpperCase() : null;
     if (!pan) {
@@ -442,7 +443,7 @@ function setupBot(bot) {
   });
 
   bot.onText(/\/vehicleinfo(?:\s+(.+))?$/, async (msg, match) => {
-    if (!isGroup(msg)) return;
+    if (!(await requireGroup(msg))) return;
     const chatId = msg.chat.id;
     const vehicle = match[1] ? match[1].trim().toUpperCase() : null;
     if (!vehicle) {
@@ -456,7 +457,7 @@ function setupBot(bot) {
   });
 
   bot.onText(/\/ffinfo(?:\s+(\d+))?$/, async (msg, match) => {
-    if (!isGroup(msg)) return;
+    if (!(await requireGroup(msg))) return;
     const chatId = msg.chat.id;
     const uid = match[1];
     if (!uid) {
@@ -469,7 +470,7 @@ function setupBot(bot) {
   });
 
   bot.on('message', async (msg) => {
-    if (!isGroup(msg)) return;
+    if (!(await requireGroup(msg))) return;
     const chatId = msg.chat.id;
     const text = msg.text?.trim();
     if (!text) return;

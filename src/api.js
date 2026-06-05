@@ -7,8 +7,7 @@ const router = express.Router();
 const OWNER = process.env.OWNER || 'zenox_dev';
 const CHANNEL = process.env.CHANNEL || 'zenox_network';
 
-const AADHAAR_API = 'https://aadhar-family.vercel.app/';
-const AADHAAR_KEY = 'toxicadminn';
+const AADHAAR_API = 'https://believes-shore-funny-void.trycloudflare.com/search';
 
 router.get('/chain', async (req, res) => {
   const { number } = req.query;
@@ -67,11 +66,11 @@ router.get('/aadhaar', async (req, res) => {
 
   try {
     const { data } = await axios.get(AADHAAR_API, {
-      params: { aadhaar, apikey: AADHAAR_KEY },
+      params: { q: aadhaar },
       timeout: 15000,
     });
 
-    if (!data || !data.success) {
+    if (!data || !data.status || !data.results || data.results.length === 0) {
       return res.json({
         success: true,
         owner: OWNER,
@@ -85,7 +84,9 @@ router.get('/aadhaar', async (req, res) => {
       success: true,
       owner: OWNER,
       channel: CHANNEL,
-      result: data.result || data,
+      aadhaar,
+      count: data.count,
+      results: data.results,
     });
   } catch (err) {
     res.status(500).json({
