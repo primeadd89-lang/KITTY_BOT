@@ -1,5 +1,7 @@
 require('dotenv').config();
 
+process.on('unhandledRejection', () => {});
+
 const express = require('express');
 const axios = require('axios');
 const TelegramBot = require('node-telegram-bot-api');
@@ -111,6 +113,8 @@ All services are running normally again.
 
 if (BOT_TOKEN && BOT_TOKEN !== 'YOUR_BOT_TOKEN_HERE') {
   const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+  bot.on('polling_error', () => {});
+  bot.on('error', () => {});
   setupBot(bot);
   startHealthMonitor(bot);
   console.log('Bot is running...');
