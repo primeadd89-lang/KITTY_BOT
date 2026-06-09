@@ -226,4 +226,51 @@ router.get('/ffinfo', async (req, res) => {
   }
 });
 
+const TG_API = 'https://krish-osintoy.lovable.app/api/v1/tg';
+const TG_KEY = 'rtf-7e9m8w62cmqyrbgyfq4tnpln';
+
+router.get('/tginfo', async (req, res) => {
+  const { info } = req.query;
+  if (!info) {
+    return res.status(400).json({
+      success: false,
+      owner: OWNER,
+      channel: CHANNEL,
+      message: 'Provide a Telegram username or ID (e.g. @username)',
+    });
+  }
+
+  try {
+    const { data } = await axios.get(TG_API, {
+      params: { key: TG_KEY, info },
+      timeout: 15000,
+    });
+
+    if (!data || !data.success) {
+      return res.json({
+        success: true,
+        owner: OWNER,
+        channel: CHANNEL,
+        message: 'No data found for this Telegram info',
+        result: null,
+      });
+    }
+
+    res.json({
+      success: true,
+      owner: OWNER,
+      channel: CHANNEL,
+      info,
+      result: data,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      owner: OWNER,
+      channel: CHANNEL,
+      message: 'Telegram lookup failed',
+    });
+  }
+});
+
 module.exports = router;

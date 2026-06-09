@@ -24,6 +24,7 @@ app.get('/', (req, res) => {
       pangst: '/api/pangst?pan=ABCDE1234F',
       vehicle: '/api/vehicle?vehicle=DL10CA7539',
       ffinfo: '/api/ffinfo?uid=123456789',
+      tginfo: '/api/tginfo?info=@thekittydev',
     },
   });
 });
@@ -70,6 +71,7 @@ function startHealthMonitor(bot) {
       axios.get(`${apiBase}/api/pangst?pan=AAACB4834H`, { timeout: 15000 }).catch(() => { allUp = false; }),
       axios.get(`${apiBase}/api/vehicle?vehicle=DL10CA7539`, { timeout: 15000 }).catch(() => { allUp = false; }),
       axios.get(`${apiBase}/api/ffinfo?uid=123456789`, { timeout: 15000 }).catch(() => { allUp = false; }),
+      axios.get(`${apiBase}/api/tginfo?info=@thekittydev`, { timeout: 15000 }).catch(() => { allUp = false; }),
     ];
 
     await Promise.all(checks);
